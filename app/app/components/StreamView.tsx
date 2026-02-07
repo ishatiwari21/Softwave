@@ -75,7 +75,7 @@ export default function StreamView({
             downvotes: 0,
             haveUpvoted: s.haveUpvoted
         })).sort((a: any, b: any) => a.upvotes < b.upvotes ? 1 : -1));
-        setCurrentVideo(json.activeStream?.stream || null);
+        setCurrentVideo((json.activeStream?.stream as unknown as Video) || null);
 
     }
 
@@ -87,25 +87,20 @@ export default function StreamView({
     }, [])
 
     useEffect(() => {
-        if (!videoPlayerRef.current) return;
+        if (!videoPlayerRef.current || !currentVideo) return;
 
         let player = YouTubePlayer(videoPlayerRef.current);
 
-        // 'loadVideoById' is queued until the player is ready to receive API calls.
-        player.loadVideoById(currentVideo?.extractedId);
-
-        // 'playVideo' is queue until the player is ready to received API calls and after 'loadVideoById' has been called.
-        player.loadVideoById(currentVideo?.extractedId);
+        player.loadVideoById(currentVideo.extractedId);
         player.playVideo();
-        function eventHandler(event: any) {
 
+        function eventHandler(event: any) {
             if (event.data === 0) {
                 playNext();
-            };
-
+            }
         }
-        player.on('stateChange', eventHandler);
 
+        player.on('stateChange', eventHandler);
 
         return () => {
             player.destroy();
@@ -163,18 +158,17 @@ export default function StreamView({
 
     const playNext = async () => {
         try {
-            if (queue.length > 0) {
-                setPlayNextLoader(true);
-                const data = await fetch('/api/streams/next', {
-                    method: "GET",
-                })
-                const json = await data.json(); // This API route now returns JSON even on empty/error logic handled above, but technically should safeguard.
-                // However, since we fixed the backend crash, the 500 HTML won't happen.
-                // But let's be safe.
-                setCurrentVideo(json.stream);
-                setQueue(q => q.filter(x => x.id !== json.stream?.id));
-            }
+            setPlayNextLoader(true);
+            const data = await fetch('/api/streams/next', {
+                method: "GET",
+            })
+            const json = await data.json();
 
+            if (json.stream) {
+                setCurrentVideo(json.stream as Video);
+            } else {
+                setCurrentVideo(null);
+            }
         }
         catch (e) {
             console.error("Error while playing next video", e);

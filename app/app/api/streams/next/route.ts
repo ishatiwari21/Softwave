@@ -33,21 +33,27 @@ export async function GET() {
         }
     });
 
+    if (!mostUpvotedStream) {
+        return NextResponse.json({
+            message: "No songs in queue",
+            stream: null
+        })
+    }
+
     await Promise.all([prismaClient.currentStream.upsert({
         where: {
             userId: user.id
         },
         update: {
-            userId: user.id,
-            streamId: mostUpvotedStream?.id
+            streamId: mostUpvotedStream.id
         },
         create: {
             userId: user.id,
-            streamId: mostUpvotedStream?.id
+            streamId: mostUpvotedStream.id
         }
     }), prismaClient.stream.update({
         where: {
-            id: mostUpvotedStream?.id ?? ""
+            id: mostUpvotedStream.id
         },
         data: {
             played: true,
