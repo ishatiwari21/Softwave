@@ -131,55 +131,49 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
     const creatorId = req.nextUrl.searchParams.get("creatorId");
-    const session = await getServerSession(authOptions);
 
-    const user = await prismaClient.user.findFirst({
-        where: {
-            email: session?.user?.email ?? ""
-        }
-    });
-    if (!user) {
-        return NextResponse.json({
-            message: "Unauthenticated"
-        }, { status: 403 })
-    }
     if (!creatorId) {
         return NextResponse.json({
-            message: "error"
+            message: "creatorId is required"
         }, { status: 411 })
     }
-    const [streams, activeStream] = await Promise.all([await prismaClient.stream.findMany({
-        where: {
-            userId: creatorId,
-            played: false
-        },
-        include: {
-            _count: {
-                select: {
-                    upvotes: true
-                }
+
+    const session = await getServerSession(authOptions);
+    const user = session?.user?.email
+        ? await prismaClient.user.findFirst({
+            where: { email: session.user.email }
+        })
+        : null;
+
+    const [streams, activeStream] = await Promise.all([
+        prismaClient.stream.findMany({
+            where: {
+                userId: creatorId,
+                played: false
             },
-            upvotes: {
-                where: {
-                    userId: user.id
-                }
+            include: {
+                _count: {
+                    select: {
+                        upvotes: true
+                    }
+                },
+                upvotes: user
+                    ? { where: { userId: user.id } }
+                    : false
             }
-        }
-    }), prismaClient.currentStream.findFirst({
-        where: {
-            userId: creatorId
-        },
-        include: {
-            stream: true
-        }
-    })])
+        }),
+        prismaClient.currentStream.findFirst({
+            where: { userId: creatorId },
+            include: { stream: true }
+        })
+    ]);
+
     return NextResponse.json({
         streams: streams.map(({ _count, ...rest }) => ({
             ...rest,
             upvotes: _count.upvotes,
-            haveUpvoted: rest.upvotes.length > 0
+            haveUpvoted: user ? (rest.upvotes as any[]).length > 0 : false
         })).filter((s: any) => s.id !== activeStream?.streamId),
         activeStream
-    })
-
+    });
 }

@@ -34,6 +34,12 @@ export async function GET() {
     });
 
     if (!mostUpvotedStream) {
+        await prismaClient.currentStream.deleteMany({
+            where: {
+                userId: user.id
+            }
+        });
+
         return NextResponse.json({
             message: "No songs in queue",
             stream: null
